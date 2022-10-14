@@ -13,17 +13,30 @@ void ads1115_init(i2c_inst_t *i2c_port, uint8_t i2c_addr,
     ads1115_read_config(adc);
 }
 
+static void ads1115_write_register(ads1115_adc_t *adc, uint8_t reg, uint16_t value) {
+    uint8_t src[3];
+    src[0] = reg;
+    src[1] = (uint8_t)(value >> 8);
+    src[2] = (uint8_t)(value & 0xff);
+    i2c_write_blocking(adc->i2c_port, adc->i2c_addr, src, 3,
+                       false);
+}
+
 void ads1115_read_adc(uint16_t *adc_value, ads1115_adc_t *adc){
     // If mode is single-shot, set bit 15 to start the conversion.
     if ((adc->config & ADS1115_MODE_MASK) == ADS1115_MODE_SINGLE_SHOT) {
-        adc->config |= 0x8000;//ADS1115_STATUS_START;
-        ads1115_write_config(adc);
-
+        uint16_t mux_config = adc->config & ADS1115_MUX_MASK;
+        ads1115_write_config(adc, true /* start single shot conversion */);
+/*
+        ads1115_write_register(adc, ADS1115_POINTER_HI_THRESH, 0x8000);
+        ads1115_write_register(adc, ADS1115_POINTER_LO_THRESH, 0x0000);
+        */
+		sleep_ms(10);
+        
         // Wait until the conversion finishes before reading the value
-        ads1115_read_config(adc);
-        while (adc->config & ADS1115_STATUS_MASK == ADS1115_STATUS_BUSY){
+        do {
             ads1115_read_config(adc);
-        }
+        } while ((adc->config & ADS1115_STATUS_MASK) == ADS1115_STATUS_BUSY && (adc->config & ADS1115_MUX_MASK) != mux_config);
     }
 
     // Now read the value from last conversion
@@ -83,13 +96,11 @@ void ads1115_read_config(ads1115_adc_t *adc){
     adc->config = (dst[0] << 8) | dst[1];
 }
 
-void ads1115_write_config(ads1115_adc_t *adc) {
-    uint8_t src[3];
-    src[0] = ADS1115_POINTER_CONFIGURATION;
-    src[1] = (uint8_t)(adc->config >> 8);
-    src[2] = (uint8_t)(adc->config & 0xff);
-    i2c_write_blocking(adc->i2c_port, adc->i2c_addr, &src, 3,
-                       false);
+void ads1115_write_config(ads1115_adc_t *adc, bool start_single_conversion) {
+    uint16_t config_word = (adc->config & ~ADS1115_STATUS_MASK);
+    if (start_single_conversion)
+        config_word |= 0x8000;
+    ads1115_write_register(adc, ADS1115_POINTER_CONFIGURATION, config_word);
 }
 
 void ads1115_set_input_mux(enum ads1115_mux_t mux, ads1115_adc_t *adc) {

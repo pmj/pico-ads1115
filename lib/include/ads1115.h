@@ -55,7 +55,7 @@ void ads1115_read_config(ads1115_adc_t *adc);
  *
  * \param adc Pointer to the structure that stores the ADS1115 info
  */
-void ads1115_write_config(ads1115_adc_t *adc);
+void ads1115_write_config(ads1115_adc_t *adc, bool start_single_conversion);
 
 /*! \brief Convert a (raw) ADC value to voltage
  *
